@@ -1,0 +1,1352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Predictive FDC Risk Analyzer v3.1 (Final)</title>
+    
+    <style>
+        :root {
+            --primary-color: #005a9c;
+            --secondary-color: #007bff;
+            --bg-color: #f4f7fa;
+            --card-bg: #ffffff;
+            --text-color: #333;
+            --border-color: #dee2e6;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+
+            --risk-low: #28a745;
+            --risk-medium: #ffc107;
+            --risk-high: #dc3545;
+            --risk-banned: #b30000;
+            --risk-rational: #005a9c;
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Source+Code+Pro:wght@400;500&display=swap');
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Roboto', 'Segoe UI', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            font-size: 16px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 1024px) {
+            .container { grid-template-columns: 2fr 1fr; }
+        }
+
+        .main-content, .sidebar { display: flex; flex-direction: column; gap: 20px; }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .card-header {
+            background-color: #fdfdfd;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .card-header h2 {
+            color: var(--primary-color);
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .card-body { padding: 24px; }
+
+        header { text-align: center; margin-bottom: 10px; }
+        header h1 { color: var(--primary-color); font-weight: 700; font-size: 2.5rem; }
+        header p { font-size: 1.1rem; color: #555; }
+
+        .selection-box { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: center; }
+        
+        @media (min-width: 768px) {
+            .selection-box { grid-template-columns: 1fr 1fr; }
+        }
+
+        .drug-selector { display: flex; flex-direction: column; }
+        .drug-selector label { margin-bottom: 8px; font-weight: 500; color: #444; }
+        .drug-selector input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .drug-selector input:focus {
+            outline: none;
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15);
+        }
+
+        #analyzeButton {
+            grid-column: 1 / -1;
+            padding: 14px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: #fff;
+            background: linear-gradient(90deg, var(--secondary-color), var(--primary-color));
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        #analyzeButton:hover {
+            opacity: 0.9;
+            box-shadow: 0 4px 15px rgba(0, 123, 255, 0.2);
+        }
+
+        .results-box-header {
+            grid-column: 1 / -1;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .results-box-header h3 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-color);
+        }
+        .results-box-header h3 span { font-weight: 400; color: #555; }
+
+        /* Explainable Narrative Output */
+        .narrative-box {
+            grid-column: 1 / -1;
+            font-family: 'Source Code Pro', monospace;
+            background-color: #fdfdfd;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .narrative-box h3 {
+            font-family: 'Roboto', sans-serif;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+        .narrative-item {
+            display: grid;
+            grid-template-columns: 120px 1fr;
+            align-items: flex-start;
+            padding: 10px 0;
+            border-bottom: 1px dashed var(--border-color);
+            font-size: 0.95rem;
+        }
+        .narrative-item:last-child { border-bottom: none; }
+        
+        .narrative-label {
+            font-weight: 500;
+            color: #555;
+        }
+        
+        .narrative-value {
+            font-weight: 400;
+            color: #000;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        
+        .narrative-final-verdict {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            text-align: center;
+            font-family: 'Roboto', sans-serif;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Verdict Colors */
+        .verdict-banned { background-color: var(--risk-banned); color: #fff; }
+        .verdict-rational { background-color: var(--risk-rational); color: #fff; }
+        .verdict-high { background-color: var(--risk-high); color: #fff; }
+        .verdict-medium { background-color: var(--risk-medium); color: #333; }
+        .verdict-low { background-color: var(--risk-low); color: #fff; }
+
+        .history-score.bg-rational { background-color: var(--risk-rational); }
+        .history-score.bg-low { background-color: var(--risk-low); }
+        .history-score.bg-medium { background-color: var(--risk-medium); color: #333; }
+        .history-score.bg-high { background-color: var(--risk-high); }
+        .history-score.bg-banned { background-color: var(--risk-banned); }
+
+        #historyList {
+            list-style-type: none;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        #historyList li {
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #historyList li:last-child { border-bottom: none; }
+        #historyList li:hover { background-color: #f8f9fa; }
+        .history-drugs { font-weight: 500; }
+        .history-score {
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 15px;
+            color: white;
+            font-size: 0.9rem;
+            min-width: 80px;
+            text-align: center;
+        }
+        
+        .history-actions { display: flex; gap: 10px; margin-top: 15px; }
+        .print-button, .clear-button {
+            flex: 1;
+            padding: 10px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .print-button { color: #fff; background-color: var(--secondary-color); }
+        .print-button:hover { background-color: var(--primary-color); }
+        .clear-button {
+            color: var(--risk-high);
+            background-color: #fdfdfd;
+            border: 1px solid var(--risk-high);
+        }
+        .clear-button:hover { background-color: var(--risk-high); color: #fff; }
+
+        @media print {
+            body { background-color: #fff; font-size: 12pt; }
+            .container { max-width: 100%; margin: 0; padding: 0; display: block; }
+            .main-content, .sidebar, .card { box-shadow: none; border: none; }
+            .selection-box, .history-box, header p, #analyzeButton, .history-actions { display: none; }
+            header h1 { font-size: 24pt; text-align: left; padding-bottom: 20px; border-bottom: 2px solid #000; }
+            .card-header h2 { font-size: 16pt; color: #000; }
+            .results-box-header h3 { font-size: 18pt; }
+            .narrative-box { border: 2px solid #000; padding: 10px; }
+            .narrative-final-verdict { border: 2px solid #000; }
+        }
+        
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        
+        <header>
+            <h1>🚀 Predictive FDC Risk Analyzer v3.1</h1>
+            <p>Transparent Logic & Context-Aware Engine</p>
+        </header>
+
+        <div class="main-content">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Analyze Combination</h2>
+                </div>
+                <div class="card-body">
+                    <div class="selection-box">
+                        <div class="drug-selector">
+                            <label for="drugA">Select Drug 1</label>
+                            <input list="drugList" id="drugA" placeholder="Type or select Drug A...">
+                        </div>
+                        <div class="drug-selector">
+                            <label for="drugB">Select Drug 2</label>
+                            <input list="drugList" id="drugB" placeholder="Type or select Drug B...">
+                        </div>
+                        <button id="analyzeButton">Analyze Risk</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" id="resultsCard" style="display: none;">
+                <div class="card-header">
+                    <h2 class="results-box-header" id="resultsHeader">Analysis Results</h2>
+                </div>
+                <div class="card-body">
+                    <div class="narrative-box" id="narrativeBox">
+                        <h3>Analysis Narrative</h3>
+                        <div id="narrativeContent">
+                            <p style="font-family: 'Roboto', sans-serif; color: #555;">
+                                Select two drugs and click "Analyze" to see the detailed logical deduction.
+                            </p>
+                        </div>
+                        <div class="narrative-final-verdict" id="finalVerdict">
+                            AWAITING ANALYSIS
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Analysis History</h2>
+                </div>
+                <div class="card-body">
+                    <ul id="historyList">
+                        <li id="noHistory">No analyses saved yet.</li>
+                    </ul>
+                    <div classs="history-actions">
+                        <button class="print-button" id="printButton">🖨️ Print Report</button>
+                        <button class="clear-button" id="clearHistoryButton">Clear History</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <datalist id="drugList"></datalist>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        // --- 1. v3.1 "SINGLE SOURCE OF TRUTH" DRUG DATABASE (80 Drugs) ---
+        const drugDatabase_v3 = {
+            // --- TIER 1: HIGH-RISK CORE (30 DRUGS) ---
+            "Nimesulide": {
+                name: "Nimesulide", category: "NSAID", sub_class: "COX-2 Preferential",
+                half_life: "2-5", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Hepatotoxicity", "GI upset", "Cardiovascular risk"],
+                ban_probability: 0.8,
+                known_interactions: [
+                    { drug: "Paracetamol", status: "BANNED", reason: "Additive hepatotoxicity with no proven synergistic benefit.", reference: "G.S.R. 188(E)" },
+                    { drug: "Aceclofenac", status: "HIGH_RISK", reason: "Redundant mechanism (both NSAIDs). Additive GI and CV risk." },
+                    { drug: "Serratiopeptidase", status: "HIGH_RISK", reason: "Irrational combination. Lack of evidence for additive effect."}
+                ]
+            },
+            "Aceclofenac": {
+                name: "Aceclofenac", category: "NSAID", sub_class: "COX Inhibitor",
+                half_life: "4-4.3", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["GI bleeding", "Cardiovascular risk", "Hepatotoxicity"],
+                ban_probability: 0.4,
+                known_interactions: [
+                    { drug: "Paracetamol", status: "HIGH_RISK", reason: "Additive risk of hepatotoxicity." },
+                    { drug: "Drotaverine", status: "BANNED", reason: "Lack of therapeutic rationale. No evidence of synergistic benefit.", reference: "CDSCO 2023" }
+                ]
+            },
+            "Drotaverine": {
+                name: "Drotaverine", category: "Antispasmodic", sub_class: "PDE4 Inhibitor",
+                half_life: "7-16", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Hypotension", "Dizziness"],
+                ban_probability: 0.5,
+                known_interactions: [
+                    { drug: "Aceclofenac", status: "BANNED", reason: "Lack of therapeutic rationale. For different types of pain.", reference: "CDSCO 2023" }
+                ]
+            },
+            "Serratiopeptidase": {
+                name: "Serratiopeptidase", category: "Enzyme", sub_class: "Proteolytic",
+                half_life: "1-2", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Allergic reactions", "Bleeding risk"],
+                ban_probability: 0.7,
+                known_interactions: [
+                    { drug: "Nimesulide", status: "HIGH_RISK", reason: "Irrational combination. Lack of evidence for additive anti-inflammatory effect." },
+                    { drug: "Diclofenac", status: "HIGH_RISK", reason: "Irrational combination. Lack of evidence." }
+                ]
+            },
+            "Trypsin-Chymotrypsin": {
+                name: "Trypsin-Chymotrypsin", category: "Enzyme", sub_class: "Proteolytic",
+                half_life: "1", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Allergy", "Pain"],
+                ban_probability: 0.6,
+                known_interactions: []
+            },
+            "Phenylephrine": {
+                name: "Phenylephrine", category: "Decongestant", sub_class: "Alpha-1 Agonist",
+                half_life: "2-3", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Hypertension", "Tachycardia", "Ineffectiveness (oral)"],
+                ban_probability: 0.9,
+                known_interactions: [
+                    { drug: "Chlorpheniramine", status: "BANNED", reason: "Lack of therapeutic rationale. Risk outweighs benefit.", reference: "Part of 344 FDCs (2016)" },
+                    { drug: "Caffeine", status: "HIGH_RISK", reason: "Additive stimulant effects (tachycardia, anxiety)." }
+                ]
+            },
+            "Caffeine": {
+                name: "Caffeine", category: "Stimulant", sub_class: "Xanthine",
+                half_life: "3-5", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Insomnia", "Tachycardia", "Anxiety"],
+                ban_probability: 0.6,
+                known_interactions: [
+                    { drug: "Paracetamol", status: "HIGH_RISK", reason: "Unproven as analgesic adjuvant, risk of overuse." },
+                    { drug: "Phenylephrine", status: "HIGH_RISK", reason: "Additive stimulant effects." }
+                ]
+            },
+            "Chlorpheniramine": {
+                name: "Chlorpheniramine", category: "Antihistamine", sub_class: "1st Gen H1 Antagonist",
+                half_life: "20-24", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Sedation", "Anticholinergic effects"],
+                ban_probability: 0.7,
+                known_interactions: [
+                    { drug: "Phenylephrine", status: "BANNED", reason: "Lack of therapeutic rationale.", reference: "Part of 344 FDCs (2016)" }
+                ]
+            },
+            "Ambroxol": {
+                name: "Ambroxol", category: "Mucolytic", sub_class: "Mucokinetic",
+                half_life: "10", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["GI upset"],
+                ban_probability: 0.3,
+                known_interactions: [
+                    { drug: "Cefixime", status: "HIGH_RISK", reason: "Irrational to combine antibiotic + mucolytic." },
+                    { drug: "Amoxicillin", status: "BANNED", reason: "Lack of therapeutic rationale.", reference: "Part of 344 FDCs (2016)" }
+                ]
+            },
+            "Levocetirizine": {
+                name: "Levocetirizine", category: "Antihistamine", sub_class: "2nd Gen H1 Antagonist",
+                half_life: "8-9", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Drowsiness"],
+                ban_probability: 0.1,
+                known_interactions: [
+                    { drug: "Montelukast", status: "RATIONAL", reason: "Complementary mechanisms for allergic rhinitis (Histamine + Leukotriene blockade)." }
+                ]
+            },
+            "Diclofenac": {
+                name: "Diclofenac", category: "NSAID", sub_class: "Acetic Acid",
+                half_life: "1-2", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Cardiovascular risk", "GI bleeding", "Hepatotoxicity"],
+                ban_probability: 0.5,
+                known_interactions: [
+                    { drug: "Paracetamol", status: "HIGH_RISK", reason: "Additive risk of hepatotoxicity and GI upset." }
+                ]
+            },
+            "Piroxicam": {
+                name: "Piroxicam", category: "NSAID", sub_class: "Oxicam",
+                half_life: "50", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["High GI risk", "Skin reactions"],
+                ban_probability: 0.6,
+                known_interactions: []
+            },
+            "Ketorolac": {
+                name: "Ketorolac", category: "NSAID", sub_class: "Acetic Acid",
+                half_life: "4-6", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Severe GI/Renal risk", "Bleeding"],
+                ban_probability: 0.2,
+                known_interactions: []
+            },
+            "Dexamethasone": {
+                name: "Dexamethasone", category: "Corticosteroid", sub_class: "Glucocorticoid",
+                half_life: "36-72", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Immunosuppression", "Hyperglycemia", "Adrenal suppression"],
+                ban_probability: 0.7,
+                known_interactions: []
+            },
+            "Prednisolone": {
+                name: "Prednisolone", category: "Corticosteroid", sub_class: "Glucocorticoid",
+                half_life: "2-3", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Immunosuppression", "Mood changes", "Osteoporosis"],
+                ban_probability: 0.6,
+                known_interactions: []
+            },
+            "Carbocisteine": {
+                name: "Carbocisteine", category: "Mucolytic", sub_class: "Mucoregulator",
+                half_life: "2", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["GI upset"],
+                ban_probability: 0.3,
+                known_interactions: []
+            },
+            "Bromhexine": {
+                name: "Bromhexine", category: "Mucolytic", sub_class: "Mucokinetic",
+                half_life: "12", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["GI upset"],
+                ban_probability: 0.3,
+                known_interactions: []
+            },
+            "Guaifenesin": {
+                name: "Guaifenesin", category: "Expectorant", sub_class: "Expectorant",
+                half_life: "1", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Dizziness", "Nausea"],
+                ban_probability: 0.5,
+                known_interactions: []
+            },
+            "Oxetacaine": {
+                name: "Oxetacaine", category: "Local Anesthetic", sub_class: "Amide",
+                half_life: "1", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Numbness", "Allergy"],
+                ban_probability: 0.6,
+                known_interactions: []
+            },
+            "Dicyclomine": {
+                name: "Dicyclomine", category: "Antispasmodic", sub_class: "Anticholinergic",
+                half_life: "1.8", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Dry mouth", "Dizziness", "Blurred vision"],
+                ban_probability: 0.4,
+                known_interactions: []
+            },
+            "Azithromycin": {
+                name: "Azithromycin", category: "Antibiotic", sub_class: "Macrolide",
+                half_life: "68", pk_dosing_relevance: "FDC_CRITICAL",
+                risk_factors: ["QT prolongation", "GI upset"],
+                ban_probability: 0.2,
+                known_interactions: [
+                    { drug: "Cefixime", status: "HIGH_RISK", reason: "Overlapping spectrum, resistance risk. No proven synergy." }
+                ]
+            },
+            "Cefixime": {
+                name: "Cefixime", category: "Antibiotic", sub_class: "Cephalosporin (3rd Gen)",
+                half_life: "3-4", pk_dosing_relevance: "FDC_CRITICAL",
+                risk_factors: ["Diarrhea", "Allergy"],
+                ban_probability: 0.3,
+                known_interactions: [
+                    { drug: "Ofloxacin", status: "HIGH_RISK", reason: "Overlapping spectrum, resistance risk. No proven synergy." },
+                    { drug: "Ambroxol", status: "HIGH_RISK", reason: "Irrational to combine antibiotic + mucolytic." }
+                ]
+            },
+            "Levofloxacin": {
+                name: "Levofloxacin", category: "Antibiotic", sub_class: "Fluoroquinolone",
+                half_life: "6-8", pk_dosing_relevance: "FDC_CRITICAL",
+                risk_factors: ["Tendon damage", "QT prolongation", "CNS effects"],
+                ban_probability: 0.6,
+                known_interactions: [
+                    { drug: "Ornidazole", status: "HIGH_RISK", reason: "Significant PK mismatch (6-8h vs 12-14h) promotes resistance." }
+                ]
+            },
+            "Ciprofloxacin": {
+                name: "Ciprofloxacin", category: "Antibiotic", sub_class: "Fluoroquinolone",
+                half_life: "4", pk_dosing_relevance: "FDC_CRITICAL",
+                risk_factors: ["Tendon damage", "CNS effects"],
+                ban_probability: 0.6,
+                known_interactions: [
+                    { drug: "Tinidazole", status: "HIGH_RISK", reason: "Severe PK mismatch (4h vs 12-14h) promotes resistance." }
+                ]
+            },
+            "Ofloxacin": {
+                name: "Ofloxacin", category: "Antibiotic", sub_class: "Fluoroquinolone",
+                half_life: "4-5", pk_dosing_relevance: "FDC_CRITICAL",
+                risk_factors: ["Tendon damage", "QT prolongation", "CNS effects"],
+                ban_probability: 0.7,
+                known_interactions: [
+                    { drug: "Ornidazole", status: "BANNED", reason: "Severe PK mismatch (4-5h vs 12-14h) leads to antimicrobial resistance.", reference: "CDSCO 2023" }
+                ]
+            },
+            "Ornidazole": {
+                name: "Ornidazole", category: "Antibiotic", sub_class: "Nitroimidazole",
+                half_life: "12-14", pk_dosing_relevance: "FDC_CRITICAL",
+                risk_factors: ["Neurotoxicity", "GI upset", "Metallic taste"],
+                ban_probability: 0.6,
+                known_interactions: [
+                    { drug: "Ofloxacin", status: "BANNED", reason: "Severe PK mismatch (12-14h vs 4-5h) leads to antimicrobial resistance.", reference: "CDSCO 2023" }
+                ]
+            },
+            "Metronidazole": {
+                name: "Metronidazole", category: "Antibiotic", sub_class: "Nitroimidazole",
+                half_life: "8", pk_dosing_relevance: "FDC_CRITICAL",
+                risk_factors: ["Disulfiram-like reaction", "Neurotoxicity"],
+                ban_probability: 0.5,
+                known_interactions: [
+                     { drug: "Norfloxacin", status: "HIGH_RISK", reason: "PK mismatch (8h vs 3-4h)." }
+                ]
+            },
+            "Tinidazole": {
+                name: "Tinidazole", category: "Antibiotic", sub_class: "Nitroimidazole",
+                half_life: "12-14", pk_dosing_relevance: "FDC_CRITICAL",
+                risk_factors: ["Metallic taste", "GI upset"],
+                ban_probability: 0.5,
+                known_interactions: [
+                    { drug: "Ciprofloxacin", status: "HIGH_RISK", reason: "Severe PK mismatch (12-14h vs 4h) promotes resistance." }
+                ]
+            },
+            "Secnidazole": {
+                name: "Secnidazole", category: "Antibiotic", sub_class: "Nitroimidazole",
+                half_life: "25", pk_dosing_relevance: "FDC_CRITICAL",
+                risk_factors: ["GI upset"],
+                ban_probability: 0.4,
+                known_interactions: []
+            },
+            "Norfloxacin": {
+                name: "Norfloxacin", category: "Antibiotic", sub_class: "Fluoroquinolone",
+                half_life: "3-4", pk_dosing_relevance: "FDC_CRITICAL",
+                risk_factors: ["Tendon damage", "CNS effects"],
+                ban_probability: 0.6,
+                known_interactions: [
+                    { drug: "Metronidazole", status: "HIGH_RISK", reason: "PK mismatch (3-4h vs 8h)." }
+                ]
+            },
+
+            // --- TIER 2: PRESCRIPTION VOLUME (35 DRUGS) ---
+            "Paracetamol": {
+                name: "Paracetamol", category: "Analgesic", sub_class: "Aniline",
+                half_life: "2-3", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Hepatotoxicity (overdose)"],
+                ban_probability: 0.1,
+                known_interactions: [
+                    { drug: "Nimesulide", status: "BANNED", reason: "Additive hepatotoxicity.", reference: "G.S.R. 188(E)" },
+                    { drug: "Tramadol", status: "RATIONAL", reason: "Multi-modal analgesia; targets different pain pathways." },
+                    { drug: "Diclofenac", status: "HIGH_RISK", reason: "Additive risk of hepatotoxicity and GI upset." },
+                    { drug: "Ibuprofen", status: "RATIONAL", reason: "Multi-modal analgesia (central + peripheral). Common, but use with caution." }
+                ]
+            },
+            "Ibuprofen": {
+                name: "Ibuprofen", category: "NSAID", sub_class: "Propionic Acid",
+                half_life: "2", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["GI upset", "Cardiovascular risk", "Nephrotoxicity"],
+                ban_probability: 0.1,
+                known_interactions: [
+                    { drug: "Paracetamol", status: "RATIONAL", reason: "Multi-modal analgesia (peripheral + central)." }
+                ]
+            },
+            "Amoxicillin": {
+                name: "Amoxicillin", category: "Antibiotic", sub_class: "Penicillin",
+                half_life: "1-1.5", pk_dosing_relevance: "FDC_CRITICAL",
+                risk_factors: ["Allergy", "Diarrhea"],
+                ban_probability: 0.1,
+                known_interactions: [
+                    { drug: "Amoxicillin+Clavulanate", status: "RATIONAL", reason: "Beta-lactamase inhibitor protects Amoxicillin from degradation." },
+                    { drug: "Ambroxol", status: "BANNED", reason: "Lack of therapeutic rationale.", reference: "Part of 344 FDCs (2016)" }
+                ]
+            },
+            "Amoxicillin+Clavulanate": {
+                name: "Amoxicillin+Clavulanate", category: "Antibiotic", sub_class: "Penicillin+Inhibitor",
+                half_life: "1-1.5", pk_dosing_relevance: "FDC_CRITICAL",
+                risk_factors: ["Diarrhea (high risk)", "Allergy", "Hepatotoxicity"],
+                ban_probability: 0.1,
+                known_interactions: []
+            },
+            "Pantoprazole": {
+                name: "Pantoprazole", category: "PPI", sub_class: "Proton Pump Inhibitor",
+                half_life: "1-2", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["B12 deficiency", "Fracture risk"],
+                ban_probability: 0.1,
+                known_interactions: [
+                    { drug: "Domperidone", status: "HIGH_RISK", reason: "Opposing pH requirements for absorption. Domperidone carries QT risk." }
+                ]
+            },
+            "Omeprazole": {
+                name: "Omeprazole", category: "PPI", sub_class: "Proton Pump Inhibitor",
+                half_life: "0.5-1", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Drug interactions (CYP2C19)", "Fracture risk"],
+                ban_probability: 0.1,
+                known_interactions: [
+                    { drug: "Domperidone", status: "HIGH_RISK", reason: "Opposing pH requirements for absorption. Domperidone carries QT risk." }
+                ]
+            },
+            "Domperidone": {
+                name: "Domperidone", category: "Prokinetic", sub_class: "D2 Antagonist",
+                half_life: "7-9", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["QT prolongation", "Hyperprolactinemia"],
+                ban_probability: 0.7,
+                known_interactions: [
+                    { drug: "Pantoprazole", status: "HIGH_RISK", reason: "Opposing pH requirements. High regulatory scrutiny on Domperidone." },
+                    { drug: "Rabeprazole", status: "HIGH_RISK", reason: "Opposing pH requirements. High regulatory scrutiny on Domperidone." }
+                ]
+            },
+            "Ondansetron": {
+                name: "Ondansetron", category: "Antiemetic", sub_class: "5-HT3 Antagonist",
+                half_life: "5-7", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["QT prolongation", "Constipation", "Headache"],
+                ban_probability: 0.2,
+                known_interactions: []
+            },
+            "Montelukast": {
+                name: "Montelukast", category: "Antiasthmatic", sub_class: "Leukotriene Antagonist",
+                half_life: "2.7-5.5", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Neuropsychiatric events"],
+                ban_probability: 0.2,
+                known_interactions: [
+                    { drug: "Levocetirizine", status: "RATIONAL", reason: "Complementary mechanisms for allergic rhinitis (Histamine + Leukotriene blockade)." },
+                    { drug: "Fexofenadine", status: "RATIONAL", reason: "Complementary mechanisms for allergic rhinitis." }
+                ]
+            },
+            "Atorvastatin": {
+                name: "Atorvastatin", category: "Statin", sub_class: "HMG-CoA Reductase Inhibitor",
+                half_life: "14", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Myopathy", "Hepatotoxicity"],
+                ban_probability: 0.1,
+                known_interactions: []
+            },
+            "Metformin": {
+                name: "Metformin", category: "Antidiabetic", sub_class: "Biguanide",
+                half_life: "6.2", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["GI upset", "Lactic acidosis (rare)"],
+                ban_probability: 0.1,
+                known_interactions: [
+                    { drug: "Glimepiride", status: "RATIONAL", reason: "Complementary mechanisms (Insulin Resistance vs. Insulin Secretion)." },
+                    { drug: "Vildagliptin", status: "RATIONAL", reason: "Complementary mechanisms (Biguanide + DPP-4 Inhibitor)." },
+                    { drug: "Empagliflozin", status: "RATIONAL", reason: "Complementary mechanisms (Biguanide + SGLT2 Inhibitor)." },
+                    { drug: "Pioglitazone", status: "RATIONAL", reason: "Complementary mechanisms (Biguanide + TZD)." },
+                    { drug: "Voglibose", status: "RATIONAL", reason: "Complementary mechanisms (Systemic + Gut absorption)." }
+                ]
+            },
+            "Glimepiride": {
+                name: "Glimepiride", category: "Antidiabetic", sub_class: "Sulfonylurea",
+                half_life: "5-9", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Hypoglycemia", "Weight gain"],
+                ban_probability: 0.1,
+                known_interactions: [
+                    { drug: "Metformin", status: "RATIONAL", reason: "Standard-of-care synergy." },
+                    { drug: "Pioglitazone", status: "RATIONAL", reason: "Complementary mechanisms." }
+                ]
+            },
+            "Telmisartan": {
+                name: "Telmisartan", category: "Antihypertensive", sub_class: "ARB",
+                half_life: "24", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Hyperkalemia", "Hypotension"],
+                ban_probability: 0.1,
+                known_interactions: [
+                    { drug: "Amlodipine", status: "RATIONAL", reason: "Complementary mechanisms (RAAS blockade + Vasodilation)." },
+                    { drug: "Hydrochlorothiazide", status: "RATIONAL", reason: "Complementary mechanisms (RAAS blockade + Diuresis)." }
+                ]
+            },
+            "Amlodipine": {
+                name: "Amlodipine", category: "Antihypertensive", sub_class: "Calcium Channel Blocker",
+                half_life: "30-50", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Peripheral edema", "Dizziness"],
+                ban_probability: 0.1,
+                known_interactions: [
+                    { drug: "Telmisartan", status: "RATIONAL", reason: "Complementary mechanisms." },
+                    { drug: "Atenolol", status: "RATIONAL", reason: "Complementary mechanisms (CCB + Beta-blocker)." }
+                ]
+            },
+            "Atenolol": {
+                name: "Atenolol", category: "Antihypertensive", sub_class: "Beta-blocker",
+                half_life: "6-7", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Bradycardia", "Fatigue"],
+                ban_probability: 0.3,
+                known_interactions: [
+                    { drug: "Amlodipine", status: "RATIONAL", reason: "Complementary mechanisms (Beta-blocker + CCB)." },
+                    { drug: "Hydrochlorothiazide", status: "RATIONAL", reason: "Complementary mechanisms (Beta-blocker + Diuretic)." }
+                ]
+            },
+            "Aspirin": {
+                name: "Aspirin", category: "Antiplatelet", sub_class: "COX-1 Inhibitor",
+                half_life: "0.25", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["GI bleeding", "Allergy"],
+                ban_probability: 0.1,
+                known_interactions: []
+            },
+            "Cetirizine": {
+                name: "Cetirizine", category: "Antihistamine", sub_class: "2nd Gen H1 Antagonist",
+                half_life: "8-9", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Drowsiness"],
+                ban_probability: 0.1,
+                known_interactions: []
+            },
+            "Loratadine": {
+                name: "Loratadine", category: "Antihistamine", sub_class: "2nd Gen H1 Antagonist",
+                half_life: "8", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Headache"],
+                ban_probability: 0.1,
+                known_interactions: []
+            },
+            "Fexofenadine": {
+                name: "Fexofenadine", category: "Antihistamine", sub_class: "2nd Gen H1 Antagonist",
+                half_life: "11-15", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Headache"],
+                ban_probability: 0.1,
+                known_interactions: [
+                    { drug: "Montelukast", status: "RATIONAL", reason: "Complementary mechanisms for allergic rhinitis." }
+                ]
+            },
+            "Hydrochlorothiazide": {
+                name: "Hydrochlorothiazide", category: "Diuretic", sub_class: "Thiazide",
+                half_life: "6-15", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Hypokalemia", "Hyperglycemia"],
+                ban_probability: 0.1,
+                known_interactions: [
+                    { drug: "Telmisartan", status: "RATIONAL", reason: "Complementary mechanisms." },
+                    { drug: "Losartan", status: "RATIONAL", reason: "Complementary mechanisms." },
+                    { drug: "Ramipril", status: "RATIONAL", reason: "Complementary mechanisms." }
+                ]
+            },
+            "Ramipril": {
+                name: "Ramipril", category: "Antihypertensive", sub_class: "ACE Inhibitor",
+                half_life: "13-17", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Cough", "Hyperkalemia", "Angioedema"],
+                ban_probability: 0.1,
+                known_interactions: [
+                    { drug: "Hydrochlorothiazide", status: "RATIONAL", reason: "Complementary mechanisms." }
+                ]
+            },
+            "Losartan": {
+                name: "Losartan", category: "Antihypertensive", sub_class: "ARB",
+                half_life: "2", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Hyperkalemia", "Hypotension"],
+                ban_probability: 0.1,
+                known_interactions: [
+                    { drug: "Hydrochlorothiazide", status: "RATIONAL", reason: "Complementary mechanisms." }
+                ]
+            },
+            "Pioglitazone": {
+                name: "Pioglitazone", category: "Antidiabetic", sub_class: "TZD",
+                half_life: "3-7", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Heart failure", "Weight gain", "Fracture risk"],
+                ban_probability: 0.5,
+                known_interactions: [
+                    { drug: "Metformin", status: "RATIONAL", reason: "Complementary mechanisms." },
+                    { drug: "Glimepiride", status: "RATIONAL", reason: "Complementary mechanisms." }
+                ]
+            },
+            "Voglibose": {
+                name: "Voglibose", category: "Antidiabetic", sub_class: "Alpha-glucosidase Inhibitor",
+                half_life: "2", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Flatulence", "Diarrhea"],
+                ban_probability: 0.1,
+                known_interactions: [
+                    { drug: "Metformin", status: "RATIONAL", reason: "Complementary mechanisms." }
+                ]
+            },
+            "Gabapentin": {
+                name: "Gabapentin", category: "Anticonvulsant", sub_class: "GABA analogue",
+                half_life: "5-7", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Dizziness", "Somnolence", "Abuse potential"],
+                ban_probability: 0.2,
+                known_interactions: [
+                    { drug: "Methylcobalamin", status: "HIGH_RISK", reason: "Irrational combination. No proven benefit for neuropathy over Gabapentin alone." }
+                ]
+            },
+            "Pregabalin": {
+                name: "Pregabalin", category: "Anticonvulsant", sub_class: "GABA analogue",
+                half_life: "6.3", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Dizziness", "Somnolence", "Abuse potential"],
+                ban_probability: 0.2,
+                known_interactions: [
+                    { drug: "Methylcobalamin", status: "HIGH_RISK", reason: "Irrational combination. No proven benefit for neuropathy over Pregabalin alone." }
+                ]
+            },
+            "Tramadol": {
+                name: "Tramadol", category: "Analgesic", sub_class: "Opioid",
+                half_life: "6-7", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Seizure risk", "Serotonin syndrome", "Addiction"],
+                ban_probability: 0.4,
+                known_interactions: [
+                    { drug: "Paracetamol", status: "RATIONAL", reason: "Multi-modal analgesia; targets different pain pathways." }
+                ]
+            },
+            "Rabeprazole": {
+                name: "Rabeprazole", category: "PPI", sub_class: "Proton Pump Inhibitor",
+                half_life: "1-2", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["B12 deficiency", "Fracture risk"],
+                ban_probability: 0.1,
+                known_interactions: [
+                    { drug: "Domperidone", status: "HIGH_RISK", reason: "Opposing pH requirements. High regulatory scrutiny on Domperidone." },
+                    { drug: "Itopride", status: "RATIONAL", reason: "Complementary mechanisms (Acid suppression + Prokinetic)." }
+                ]
+            },
+            "Itopride": {
+                name: "Itopride", category: "Prokinetic", sub_class: "D2 Antagonist/AChE Inhibitor",
+                half_life: "6", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Hyperprolactinemia"],
+                ban_probability: 0.2,
+                known_interactions: [
+                    { drug: "Rabeprazole", status: "RATIONAL", reason: "Complementary mechanisms (Prokinetic + Acid suppression)." }
+                ]
+            },
+            "Mebeverine": {
+                name: "Mebeverine", category: "Antispasmodic", sub_class: "Musculotropic",
+                half_life: "2.5", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Allergy"],
+                ban_probability: 0.1,
+                known_interactions: []
+            },
+            "Lornoxicam": {
+                name: "Lornoxicam", category: "NSAID", sub_class: "Oxicam",
+                half_life: "3-4", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["GI upset", "Hepatotoxicity"],
+                ban_probability: 0.3,
+                known_interactions: [
+                    { drug: "Paracetamol", status: "HIGH_RISK", reason: "Additive risk of hepatotoxicity." }
+                ]
+            },
+            "Etoricoxib": {
+                name: "Etoricoxib", category: "NSAID", sub_class: "COX-2 Selective",
+                half_life: "22", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["High cardiovascular risk", "Hypertension"],
+                ban_probability: 0.4,
+                known_interactions: []
+            },
+            "Celecoxib": {
+                name: "Celecoxib", category: "NSAID", sub_class: "COX-2 Selective",
+                half_life: "11", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Cardiovascular risk", "Sulfa allergy"],
+                ban_probability: 0.3,
+                known_interactions: []
+            },
+
+            // --- TIER 3: SPECIAL CASES (15 DRUGS) ---
+            "Colchicine": {
+                name: "Colchicine", category: "Antigout", sub_class: "Tubulin Inhibitor",
+                half_life: "20-40", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Narrow therapeutic index", "Diarrhea", "Myopathy"],
+                ban_probability: 0.2,
+                known_interactions: []
+            },
+            "Febuxostat": {
+                name: "Febuxostat", category: "Antigout", sub_class: "Xanthine Oxidase Inhibitor",
+                half_life: "5-8", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Cardiovascular risk", "Hepatotoxicity"],
+                ban_probability: 0.2,
+                known_interactions: []
+            },
+            "Linagliptin": {
+                name: "Linagliptin", category: "Antidiabetic", sub_class: "DPP-4 Inhibitor",
+                half_life: "120+", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Pancreatitis", "Joint pain"],
+                ban_probability: 0.1,
+                known_interactions: [
+                    { drug: "Metformin", status: "RATIONAL", reason: "Complementary mechanisms." }
+                ]
+            },
+            "Vildagliptin": {
+                name: "Vildagliptin", category: "Antidiabetic", sub_class: "DPP-4 Inhibitor",
+                half_life: "3", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Hepatotoxicity", "Pancreatitis"],
+                ban_probability: 0.2,
+                known_interactions: [
+                    { drug: "Metformin", status: "RATIONAL", reason: "Complementary mechanisms." }
+                ]
+            },
+            "Empagliflozin": {
+                name: "Empagliflozin", category: "Antidiabetic", sub_class: "SGLT2 Inhibitor",
+                half_life: "12.4", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Genital infections", "DKA", "Volume depletion"],
+                ban_probability: 0.1,
+                known_interactions: [
+                    { drug: "Metformin", status: "RATIONAL", reason: "Complementary mechanisms." },
+                    { drug: "Linagliptin", status: "RATIONAL", reason: "Complementary mechanisms (SGLT2 + DPP-4)." }
+                ]
+            },
+            "Dapagliflozin": {
+                name: "Dapagliflozin", category: "Antidiabetic", sub_class: "SGLT2 Inhibitor",
+                half_life: "12.9", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Genital infections", "DKA", "Bladder cancer risk"],
+                ban_probability: 0.1,
+                known_interactions: [
+                    { drug: "Metformin", status: "RATIONAL", reason: "Complementary mechanisms." }
+                ]
+            },
+            "Rivaroxaban": {
+                name: "Rivaroxaban", category: "Anticoagulant", sub_class: "Factor Xa Inhibitor",
+                half_life: "5-9", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Bleeding"],
+                ban_probability: 0.1,
+                known_interactions: []
+            },
+            "Apixaban": {
+                name: "Apixaban", category: "Anticoagulant", sub_class: "Factor Xa Inhibitor",
+                half_life: "12", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Bleeding"],
+                ban_probability: 0.1,
+                known_interactions: []
+            },
+            "Duloxetine": {
+                name: "Duloxetine", category: "Antidepressant", sub_class: "SNRI",
+                half_life: "12", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Nausea", "Hepatotoxicity", "Suicidality risk"],
+                ban_probability: 0.2,
+                known_interactions: []
+            },
+            "Milnacipran": {
+                name: "Milnacipran", category: "Antidepressant", sub_class: "SNRI",
+                half_life: "8", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Nausea", "Hypertension"],
+                ban_probability: 0.3,
+                known_interactions: []
+            },
+            "Rifaximin": {
+                name: "Rifaximin", category: "Antibiotic", sub_class: "Rifamycin",
+                half_life: "6", pk_dosing_relevance: "FDC_CRITICAL",
+                risk_factors: ["C. diff risk (low)"],
+                ban_probability: 0.1,
+                known_interactions: []
+            },
+            "Racecadotril": {
+                name: "Racecadotril", category: "Antidiarrheal", sub_class: "Enkephalinase Inhibitor",
+                half_life: "3", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Headache"],
+                ban_probability: 0.1,
+                known_interactions: [
+                    { drug: "Ofloxacin", status: "RATIONAL", reason: "Treats infectious diarrhea symptoms + cause." }
+                ]
+            },
+            "Silymarin": {
+                name: "Silymarin", category: "Hepatoprotectant", sub_class: "Nutraceutical",
+                half_life: "6", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Allergy"],
+                ban_probability: 0.8,
+                known_interactions: []
+            },
+            "Alpha-lipoic acid": {
+                name: "Alpha-lipoic acid", category: "Supplement", sub_class: "Antioxidant",
+                half_life: "0.5", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["GI upset"],
+                ban_probability: 0.7,
+                known_interactions: [
+                     { drug: "Gabapentin", status: "HIGH_RISK", reason: "Irrational. No proven benefit over Gabapentin alone." }
+                ]
+            },
+            "Methylcobalamin": {
+                name: "Methylcobalamin", category: "Vitamin", sub_class: "Vitamin B12",
+                half_life: "N/A", pk_dosing_relevance: "INDEPENDENT",
+                risk_factors: ["Acne"],
+                ban_probability: 0.6,
+                known_interactions: [
+                    { drug: "Gabapentin", status: "HIGH_RISK", reason: "Irrational combination. No proven benefit for neuropathy over Gabapentin alone." },
+                    { drug: "Pregabalin", status: "HIGH_RISK", reason: "Irrational combination. No proven benefit for neuropathy over Pregabalin alone." }
+                ]
+            }
+        };
+
+        
+        // --- 2. v3.1 "CONTEXT-AWARE" PREDICTION ENGINE ---
+
+        class FDCRiskPredictor_v3 {
+            
+            constructor() {
+                // Define weights for the predictive score
+                this.weights = {
+                    mechanism: 0.40,
+                    pk_mismatch: 0.30,
+                    safety_overlap: 0.30
+                };
+            }
+            
+            // --- Helper: Parse Half-Life ---
+            parseHalfLife(halfLifeStr) {
+                if (!halfLifeStr || halfLifeStr.toLowerCase() === 'n/a') return null;
+                const rangeMatch = halfLifeStr.match(/(\d+\.?\d*)-(\d+\.?\d*)/);
+                if (rangeMatch) return (parseFloat(rangeMatch[1]) + parseFloat(rangeMatch[2])) / 2;
+                const singleMatch = halfLifeStr.match(/(\d+\.?\d*)/);
+                return singleMatch ? parseFloat(singleMatch[1]) : null;
+            }
+
+            // --- v3.1 LOGIC CHECKS ---
+
+            // Check 1: Mechanism Risk (Context-Aware)
+            calculateMechanismRisk(drugA, drugB) {
+                if (drugA.category !== drugB.category) {
+                    // e.g., Antibiotic + Antihypertensive
+                    return { risk: 0.1, narrative: "LOW: Different therapeutic categories." };
+                }
+                
+                // Same category, check sub-class
+                if (drugA.sub_class === drugB.sub_class) {
+                    // e.g., Ibuprofen (NSAID-Propionic Acid) + Diclofenac (NSAID-Acetic Acid)
+                    // Note: A more nuanced check could compare sub-classes, but for now, same-category is a flag.
+                    return { risk: 0.9, narrative: `HIGH: Redundant mechanism. Both are ${drugA.category}. Additive risk with no clear synergy.` };
+                }
+                
+                // e.g., Telmisartan (Antihypertensive-ARB) + Atenolol (Antihypertensive-Beta-blocker)
+                return { risk: 0.3, narrative: `NEUTRAL: Same category (${drugA.category}) but different sub-classes. This is often a rational synergistic strategy.` };
+            }
+            
+            // Check 2: PK Mismatch Risk (v3.1 Context-Aware)
+            calculatePKRisk(drugA, drugB) {
+                const halfLifeA = this.parseHalfLife(drugA.half_life);
+                const halfLifeB = this.parseHalfLife(drugB.half_life);
+
+                if (!halfLifeA || !halfLifeB) {
+                    return { risk: 0.1, narrative: "N/A: Insufficient half-life data for one or both drugs." };
+                }
+
+                const ratio = Math.max(halfLifeA, halfLifeB) / Math.min(halfLifeA, halfLifeB);
+                
+                // CRITICAL CHECK: Are both drugs in a class where FDC dosing is critical?
+                const isCritical = (drugA.pk_dosing_relevance === "FDC_CRITICAL" && drugB.pk_dosing_relevance === "FDC_CRITICAL");
+                
+                if (isCritical) {
+                    if (ratio > 2) {
+                        return { risk: 0.9, narrative: `HIGH: Severe PK mismatch (Ratio: ${ratio.toFixed(1)}x) for a dosing-critical FDC (e.g., Antibiotics). Promotes resistance.` };
+                    } else {
+                        return { risk: 0.1, narrative: "LOW: Acceptable PK match for a dosing-critical FDC." };
+                    }
+                }
+                
+                // NON-CRITICAL: A mismatch is not inherently dangerous
+                if (ratio > 3) {
+                     return { risk: 0.2, narrative: `NEUTRAL: PK mismatch (Ratio: ${ratio.toFixed(1)}x) detected, but not in a dosing-critical category. (e.g., common in antihypertensives).` };
+                }
+                
+                return { risk: 0.1, narrative: "LOW: Good PK match." };
+            }
+            
+            // Check 3: Safety Overlap Risk
+            calculateSafetyRisk(drugA, drugB) {
+                if (!drugA.risk_factors || !drugB.risk_factors) {
+                    return { risk: 0.1, narrative: "N/A: Insufficient risk factor data." };
+                }
+                
+                const commonRisks = drugA.risk_factors.filter(risk => drugB.risk_factors.includes(risk));
+                
+                if (commonRisks.length === 0) {
+                    return { risk: 0.1, narrative: "LOW: No critical overlapping side effects." };
+                }
+                
+                const critical = ["Hepatotoxicity", "QT prolongation", "Cardiovascular risk", "Nephrotoxicity", "GI bleeding", "Tendon damage", "Hyperkalemia"];
+                const hasCritical = commonRisks.some(risk => critical.includes(risk));
+                
+                if (hasCritical) {
+                    return { risk: 0.9, narrative: `HIGH: Critical safety overlap detected: ${commonRisks.join(', ')}.` };
+                }
+                
+                return { risk: 0.5, narrative: `MEDIUM: Non-critical side effects overlap: ${commonRisks.join(', ')}.` };
+            }
+
+            // --- v3.1 MAIN ANALYSIS WATERFALL ---
+            analyze(drugA, drugB) {
+                let narrative = {};
+                
+                // 1. Check for Manual Override (The Single Source of Truth)
+                const interaction = (drugA.known_interactions || []).find(inter => inter.drug === drugB.name) ||
+                                    (drugB.known_interactions || []).find(inter => inter.drug === drugA.name);
+                
+                if (interaction) {
+                    if (interaction.status === "BANNED") {
+                        narrative.override = `BANNED. ${interaction.reason} (Ref: ${interaction.reference || 'N/A'})`;
+                        narrative.finalScore = 100;
+                        narrative.verdict = "BANNED COMBINATION";
+                        narrative.css = "verdict-banned";
+                        return narrative;
+                    }
+                    if (interaction.status === "RATIONAL") {
+                        narrative.override = `RATIONAL. ${interaction.reason}`;
+                        narrative.finalScore = 10;
+                        narrative.verdict = "RATIONAL FDC";
+                        narrative.css = "verdict-rational";
+                        return narrative;
+                    }
+                     if (interaction.status === "HIGH_RISK") {
+                        narrative.override = `HIGH RISK. ${interaction.reason}`;
+                        narrative.finalScore = 85;
+                        narrative.verdict = "HIGH PREDICTIVE RISK";
+                        narrative.css = "verdict-high";
+                        return narrative;
+                    }
+                }
+
+                // 2. Run Predictive Engine (No override found)
+                const mech = this.calculateMechanismRisk(drugA, drugB);
+                const pk = this.calculatePKRisk(drugA, drugB);
+                const safety = this.calculateSafetyRisk(drugA, drugB);
+                
+                narrative.mechanism = mech.narrative;
+                narrative.pk_mismatch = pk.narrative;
+                narrative.safety_overlap = safety.narrative;
+                
+                // Calculate final score
+                const score = (
+                    mech.risk * this.weights.mechanism +
+                    pk.risk * this.weights.pk_mismatch +
+                    safety.risk * this.weights.safety_overlap
+                ) * 100;
+                
+                narrative.finalScore = Math.round(score);
+
+                // Determine verdict
+                if (narrative.finalScore > 70) {
+                    narrative.verdict = "HIGH PREDICTIVE RISK";
+                    narrative.css = "verdict-high";
+                } else if (narrative.finalScore > 35) {
+                    narrative.verdict = "MEDIUM PREDICTIVE RISK";
+                    narrative.css = "verdict-medium";
+                } else {
+                    narrative.verdict = "LOW PREDICTIVE RISK";
+                    narrative.css = "verdict-low";
+                }
+                
+                // Final check for unrelated drugs (e.g., Amoxicillin + Amlodipine)
+                // If mechanism risk is low (diff categories) and PK is non-critical, it's likely low risk.
+                if (mech.risk < 0.2 && pk.risk < 0.3 && safety.risk < 0.2) {
+                     narrative.finalScore = 15;
+                     narrative.verdict = "LOW RISK (Unrelated Drugs)";
+                     narrative.css = "verdict-low";
+                }
+                
+                return narrative;
+            }
+        }
+
+
+        // --- 3. DOM & UI LOGIC ---
+
+        // Get DOM Elements
+        const drugAInput = document.getElementById('drugA');
+        const drugBInput = document.getElementById('drugB');
+        const analyzeButton = document.getElementById('analyzeButton');
+        const drugList = document.getElementById('drugList');
+        const resultsCard = document.getElementById('resultsCard');
+        const resultsHeader = document.getElementById('resultsHeader');
+        
+        const narrativeContent = document.getElementById('narrativeContent');
+        const finalVerdict = document.getElementById('finalVerdict');
+
+        const historyList = document.getElementById('historyList');
+        const noHistory = document.getElementById('noHistory');
+        const printButton = document.getElementById('printButton');
+        const clearHistoryButton = document.getElementById('clearHistoryButton');
+
+        // Instantiate predictor
+        const predictor = new FDCRiskPredictor_v3();
+        let currentResult = null;
+
+        // --- UI Functions ---
+
+        function populateDrugSelectors() {
+            const drugNames = Object.keys(drugDatabase_v3).sort();
+            drugNames.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = `${name} (${drugDatabase_v3[name].category} - ${drugDatabase_v3[name].sub_class})`;
+                drugList.appendChild(option);
+            });
+        }
+        
+        function renderNarrativeItem(label, value) {
+            return `
+                <div class="narrative-item">
+                    <span class="narrative-label">${label.toUpperCase()}:</span>
+                    <span class="narrative-value">${value}</span>
+                </div>
+            `;
+        }
+
+        function analyzeFDC() {
+            const drugAName = drugAInput.value;
+            const drugBName = drugBInput.value;
+
+            const drugA = drugDatabase_v3[drugAName];
+            const drugB = drugDatabase_v3[drugBName];
+
+            if (!drugA || !drugB) {
+                alert("Please select two valid drugs from the list.");
+                return;
+            }
+            if (drugAName === drugBName) {
+                alert("Please select two different drugs.");
+                return;
+            }
+
+            const result = predictor.analyze(drugA, drugB);
+            currentResult = { result, drugA, drugB }; // Save for printing
+
+            resultsHeader.innerHTML = `<h3>${drugA.name} <span>+</span> ${drugB.name}</h3>`;
+            
+            // Render Explainable Narrative
+            let html = '';
+            if (result.override) {
+                html += renderNarrativeItem("Status", result.override);
+            } else {
+                html += renderNarrativeItem("Mechanism", result.mechanism);
+                html += renderNarrativeItem("PK Mismatch", result.pk_mismatch);
+                html += renderNarrativeItem("Safety Overlap", result.safety_overlap);
+                html += renderNarrativeItem("Score", `~${result.finalScore}%`);
+            }
+            narrativeContent.innerHTML = html;
+            
+            finalVerdict.textContent = result.verdict;
+            finalVerdict.className = `narrative-final-verdict ${result.css}`;
+
+            resultsCard.style.display = 'block';
+            
+            saveToHistory(result, drugA, drugB);
+            loadHistory();
+        }
+
+        // --- History & Local Storage ---
+        
+        function getHistory() {
+            // Use a unique key for this version
+            return JSON.parse(localStorage.getItem('fdcAnalysisHistoryV3_1') || '[]');
+        }
+        
+        function saveToHistory(result, drugA, drugB) {
+            const history = getHistory();
+            const analysisRecord = {
+                drugA: drugA.name,
+                drugB: drugB.name,
+                verdict: result.verdict,
+                css: result.css,
+                timestamp: new Date().toISOString()
+            };
+            
+            // Find and remove old record for this pair, if any
+            const filteredHistory = history.filter(h => 
+                !((h.drugA === drugA.name && h.drugB === drugB.name) ||
+                  (h.drugA === drugB.name && h.drugB === drugA.name))
+            );
+            
+            // Add new record to the beginning
+            filteredHistory.unshift(analysisRecord);
+            
+            // Limit history to 20 items
+            if (filteredHistory.length > 20) filteredHistory.pop();
+            
+            localStorage.setItem('fdcAnalysisHistoryV3_1', JSON.stringify(filteredHistory));
+        }
+        
+        function loadHistory() {
+            const history = getHistory();
+            historyList.innerHTML = '';
+            
+            if (history.length === 0) {
+                historyList.appendChild(noHistory);
+                noHistory.style.display = 'block';
+                return;
+            }
+            
+            noHistory.style.display = 'none';
+            history.forEach(item => {
+                const li = document.createElement('li');
+                
+                let cssClass = item.css.replace('verdict-', 'bg-');
+                let text = item.verdict.replace(" PREDICTIVE RISK", "").replace(" COMBINATION", "");
+
+                li.innerHTML = `
+                    <span class="history-drugs">${item.drugA} + ${item.drugB}</span>
+                    <span class="history-score ${cssClass}">${text}</span>
+                `;
+                li.addEventListener('click', () => {
+                    drugAInput.value = item.drugA;
+                    drugBInput.value = item.drugB;
+                    analyzeFDC();
+                });
+                historyList.appendChild(li);
+            });
+        }
+        
+        function clearHistory() {
+            if (confirm("Are you sure you want to clear all analysis history?")) {
+                localStorage.removeItem('fdcAnalysisHistoryV3_1');
+                loadHistory();
+            }
+        }
+
+        // --- Event Listeners ---
+        analyzeButton.addEventListener('click', analyzeFDC);
+        clearHistoryButton.addEventListener('click', clearHistory);
+        printButton.addEventListener('click', () => {
+            if (currentResult) {
+                window.print();
+            } else {
+                alert("Please run an analysis before printing.");
+            }
+        });
+        
+        // --- INITIALIZE ---
+        populateDrugSelectors();
+        loadHistory();
+    });
+    </script>
+
+</body>
+</html>
